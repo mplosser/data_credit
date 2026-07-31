@@ -296,6 +296,19 @@ def save_curve_data(df, description_map):
     save_with_metadata(df_quarterly, PROCESSED_DIR / 'quarterly_curve.parquet', description_map)
     print(f"  Saved quarterly_curve.parquet: {len(df_quarterly)} rows")
 
+    # Quarterly END-OF-QUARTER (spot): last month present in each quarter.
+    # HQM monthly values are end-of-month spot rates, so the quarter's final
+    # month (Mar/Jun/Sep/Dec) IS the EOQ spot rate -- directly comparable to
+    # end-of-quarter Treasury yields. Use this curve for VALUATION (duration /
+    # fair-value spreads, where the impact is on value at a specific date); use
+    # the quarterly *average* above for FLOW analysis (deposit betas, income,
+    # estimated over the course of a quarter). Netting an averaged corporate
+    # yield against a spot Treasury produced spurious negative spreads in fast
+    # intra-quarter rate moves (e.g. 2022Q1/Q3).
+    df_end = df_curve.sort_values('datem').groupby('dateq')[numeric_cols].last().reset_index()
+    save_with_metadata(df_end, PROCESSED_DIR / 'quarterly_curve_end.parquet', description_map)
+    print(f"  Saved quarterly_curve_end.parquet: {len(df_end)} rows")
+
 
 def save_mortgage_data(df, description_map):
     """Save mortgage rate data at multiple frequencies."""
