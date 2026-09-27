@@ -85,8 +85,36 @@ def download_fred_series():
     df.index.name = 'date'
     df = df.reset_index()
 
-    # Save to raw directory
+    # NEVER overwrite history. Since April 2026 FRED serves only the last three years of the
+    # ICE BofA series, so a fresh pull is SHORTER than what we hold. Each pull is kept as its
+    # own dated file, and merged into fred_data.parquet by appending only NEW dates: values we
+    # already hold are never replaced, conflicts on overlapping dates are logged, and the
+    # write is refused if any series would lose observations. The full history is also
+    # archived (read-only) in OneDrive/bec_irreplaceable_data.
+    pull_path = RAW_DIR / f"fred_pull_{pd.Timestamp.today():%Y%m%d}.parquet"
+    df.to_parquet(pull_path)
+    print(f"\n  Saved this pull as {pull_path.name}")
     output_path = RAW_DIR / 'fred_data.parquet'
+    if output_path.exists():
+        old = pd.read_parquet(output_path)
+        old['date'] = pd.to_datetime(old['date'])
+        df['date'] = pd.to_datetime(df['date'])
+        merged = old.set_index('date').combine_first(df.set_index('date'))  # existing values win
+        # log overlapping dates where the new pull disagrees with what we hold
+        both = old.set_index('date').index.intersection(df.set_index('date').index)
+        o, n = old.set_index('date').loc[both], df.set_index('date').loc[both]
+        for c in [c for c in n.columns if c in o.columns]:
+            d = (o[c] - n[c]).abs()
+            k = int((d > 1e-9).sum())
+            if k:
+                print(f"  NOTE {c}: {k} overlapping dates differ from held values (max {d.max():.4f}); held values kept")
+        lost = {c: int(old[c].notna().sum() - merged[c].notna().sum()) for c in old.columns if c != 'date' and c in merged}
+        lost = {c: v for c, v in lost.items() if v > 0}
+        if lost:
+            raise RuntimeError(f"refusing to write {output_path.name}: series would lose observations {lost}")
+        df = merged.reset_index()
+        added = len(df) - len(old)
+        print(f"  Merged into {output_path.name}: {added} new dates appended; history preserved")
     df.to_parquet(output_path)
     print(f"\nSaved FRED data to {output_path}")
     print(f"Shape: {df.shape}")
