@@ -1,5 +1,6 @@
 """
-Download corporate credit yields, spreads, HQM curve, and mortgage rates from FRED and Treasury.
+Download corporate credit yields, spreads, Moody's Aaa/Baa, HQM curve, and mortgage rates from FRED,
+and the Gilchrist-Zakrajsek spread and excess bond premium from the Federal Reserve Board.
 """
 
 import os
@@ -51,6 +52,15 @@ def download_fred_series():
         'BAMLH0A2HYBEY',     # High Yield B Effective Yield
     ]
 
+    # Moody's seasoned corporate bond yields (bonds with maturities of 20 years and above),
+    # full daily history on FRED
+    moodys_series = [
+        'DAAA',              # Moody's Seasoned Aaa Corporate Bond Yield
+        'DBAA',              # Moody's Seasoned Baa Corporate Bond Yield
+        'AAA10Y',            # Aaa yield minus 10-year Treasury
+        'BAA10Y',            # Baa yield minus 10-year Treasury
+    ]
+
     # HQM Corporate Bond indices (zero-coupon)
     hqm_series = [
         'HQMCB6MT', 'HQMCB1YR', 'HQMCB2YR', 'HQMCB3YR', 'HQMCB5YR',
@@ -69,7 +79,7 @@ def download_fred_series():
         'OBMMIJUMBO30YF',    # 30-Year Jumbo Mortgage Rate
     ]
 
-    all_series = spread_series + hqm_series + hqm_par_series + mortgage_series
+    all_series = spread_series + moodys_series + hqm_series + hqm_par_series + mortgage_series
 
     # Download data
     data_dict = {}

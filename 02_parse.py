@@ -34,6 +34,11 @@ VARIABLE_DEFINITIONS = {
     'BAMLC0A4CBBB': ('s_bbb', 'ICE BofA BBB US Corporate Index Option-Adjusted Spread'),
     'BAMLH0A1HYBB': ('s_bb', 'ICE BofA BB US High Yield Index Option-Adjusted Spread'),
     'BAMLH0A2HYB': ('s_b', 'ICE BofA B US High Yield Index Option-Adjusted Spread'),
+    # Moody's seasoned corporate bond yields and spreads to the 10-year Treasury
+    'DAAA': ('moodys_aaa', "Moody's Seasoned Aaa Corporate Bond Yield"),
+    'DBAA': ('moodys_baa', "Moody's Seasoned Baa Corporate Bond Yield"),
+    'AAA10Y': ('moodys_aaa_10y', "Moody's Seasoned Aaa Corporate Bond Yield minus 10-Year Treasury"),
+    'BAA10Y': ('moodys_baa_10y', "Moody's Seasoned Baa Corporate Bond Yield minus 10-Year Treasury"),
     # Mortgage rates
     'MORTGAGE30US': ('ym_30', '30-Year Fixed Rate Mortgage Average'),
     'MORTGAGE15US': ('ym_15', '15-Year Fixed Rate Mortgage Average'),
@@ -350,6 +355,27 @@ def save_mortgage_data(df, description_map):
     print(f"  Saved quarterly_avg_mtgrates.parquet: {len(df_qavg)} rows")
 
 
+def save_moodys_data(df, description_map):
+    """Save Moody's Aaa/Baa yields and spreads: daily, end of month, end of quarter, quarterly average."""
+    print("\nSaving Moody's data...")
+    cols = [c for c in df.columns if c.startswith('moodys_')]
+    if not cols:
+        print("  No Moody's data found (run 01_download.py), skipping...")
+        return
+    d = df[['daten', 'datem', 'dateq', *cols]].dropna(subset=cols, how='all').reset_index(drop=True)
+    save_with_metadata(d, PROCESSED_DIR / 'daily_moodys.parquet', description_map)
+    print(f"  Saved daily_moodys.parquet: {len(d)} rows")
+    m = d[d['daten'] == d.groupby('datem')['daten'].transform('max')]
+    save_with_metadata(m.reset_index(drop=True), PROCESSED_DIR / 'monthly_moodys.parquet', description_map)
+    print(f"  Saved monthly_moodys.parquet: {len(m)} rows")
+    q = d[d['daten'] == d.groupby('dateq')['daten'].transform('max')]
+    save_with_metadata(q.reset_index(drop=True), PROCESSED_DIR / 'quarterly_moodys.parquet', description_map)
+    print(f"  Saved quarterly_moodys.parquet: {len(q)} rows")
+    qa = d.groupby('dateq')[cols].mean().reset_index()
+    save_with_metadata(qa, PROCESSED_DIR / 'quarterly_avg_moodys.parquet', description_map)
+    print(f"  Saved quarterly_avg_moodys.parquet: {len(qa)} rows")
+
+
 GZ_NAMES = {
     'gz_spread': 'Gilchrist-Zakrajsek credit spread (Federal Reserve Board)',
     'ebp': 'Excess bond premium (Gilchrist-Zakrajsek)',
@@ -414,6 +440,7 @@ def main():
     save_rating_data(df, description_map)
     save_curve_data(df, description_map)
     save_mortgage_data(df, description_map)
+    save_moodys_data(df, description_map)
     save_gz_data()
 
     print("\n" + "=" * 70)

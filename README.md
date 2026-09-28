@@ -5,6 +5,7 @@ Downloads corporate credit yields, spreads, and the HQM corporate credit curve f
 ## Features
 
 - Downloads ICE BofA corporate bond yields and spreads (AAA through B ratings)
+- Downloads Moody's seasoned Aaa and Baa corporate bond yields and their spreads to the 10-year Treasury
 - Downloads Treasury HQM corporate credit curve data
 - Downloads mortgage rates (30-year, 15-year, jumbo)
 - Downloads the Gilchrist-Zakrajsek credit spread and excess bond premium (Federal Reserve Board)
@@ -47,6 +48,7 @@ python 03_summarize.py   # View summary with column availability by date range
 | Source | Series | Description |
 |--------|--------|-------------|
 | FRED | BAMLC0A1CAAA, BAMLC0A1CAAAEY, etc. | ICE BofA Corporate Bond Indices |
+| FRED | DAAA, DBAA, AAA10Y, BAA10Y | Moody's Seasoned Aaa/Baa Corporate Bond Yields and spreads to the 10-year Treasury |
 | FRED | HQMCB6MT, HQMCB1YR, etc. | HQM Corporate Bond Yields |
 | FRED | MORTGAGE30US, MORTGAGE15US, OBMMIJUMBO30YF | Mortgage Rates |
 | Federal Reserve Board | [ebp_csv.csv](https://www.federalreserve.gov/econres/notes/feds-notes/ebp_csv.csv) | Gilchrist-Zakrajsek credit spread and excess bond premium, monthly from 1973 |
@@ -77,6 +79,14 @@ All output files are saved to `data/processed/` in Parquet format with embedded 
 | `quarterly_mtgrates.parquet` | End of quarter values |
 | `quarterly_avg_mtgrates.parquet` | Quarterly averages |
 
+### Moody's Seasoned Aaa/Baa
+| File | Description |
+|------|-------------|
+| `daily_moodys.parquet` | All trading days |
+| `monthly_moodys.parquet` | End of month values |
+| `quarterly_moodys.parquet` | End of quarter values |
+| `quarterly_avg_moodys.parquet` | Quarterly averages |
+
 ### Gilchrist-Zakrajsek Spread and Excess Bond Premium
 | File | Description |
 |------|-------------|
@@ -103,6 +113,10 @@ previous one; each pull is also kept in `data/raw/gz_ebp_YYYYMMDD.csv`.
 - `ym_30` - 30-year fixed rate
 - `ym_15` - 15-year fixed rate
 - `ym_30_jumbo` - 30-year jumbo rate
+
+### Moody's (decimal format)
+- `moodys_aaa`, `moodys_baa` - Seasoned Aaa and Baa yields (bonds with maturities of 20 years and above)
+- `moodys_aaa_10y`, `moodys_baa_10y` - The same minus the 10-year Treasury yield
 
 ### Gilchrist-Zakrajsek (decimal format, except the probability)
 - `gz_spread` - GZ credit spread
