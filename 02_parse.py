@@ -418,8 +418,21 @@ def main():
 
     # Load data
     print("\nLoading raw data...")
-    df = load_raw_data()
-    print(f"Loaded {len(df)} rows")
+    raw = load_raw_data()
+    print(f"Loaded {len(raw)} rows")
+
+    # Moody's arrives daily from 1983 and is processed on its own dates. Its extra dates are kept
+    # out of the frame for the other series, whose forward fills and quarterly averages depend on
+    # which dates are present: that frame keeps every date from the start of the ICE BofA daily
+    # calendar (which Moody's shares) and, before it, only dates where another series is observed.
+    moodys_ids = [k for k, (v, _) in VARIABLE_DEFINITIONS.items() if v.startswith('moodys_') and k in raw]
+    other = [c for c in raw.columns if c not in moodys_ids and c != 'date']
+    ice = [c for c in other if c.startswith('BAML')]
+    ice_start = raw.loc[raw[ice].notna().any(axis=1), 'date'].min() if ice else raw['date'].max()
+    keep = raw[other].notna().any(axis=1) | (raw['date'] >= ice_start)
+    df = raw.loc[keep, ['date', *other]].reset_index(drop=True)
+    md = raw[['date', *moodys_ids]].dropna(subset=moodys_ids, how='all').reset_index(drop=True)
+    md = add_date_columns(convert_to_decimals(rename_variables(md)))
 
     # Process data
     df = rename_variables(df)
@@ -434,7 +447,7 @@ def main():
     save_rating_data(df, description_map)
     save_curve_data(df, description_map)
     save_mortgage_data(df, description_map)
-    save_moodys_data(df, description_map)
+    save_moodys_data(md, description_map)
     save_gz_data()
 
     print("\n" + "=" * 70)
