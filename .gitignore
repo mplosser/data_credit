@@ -6,9 +6,12 @@
 venv/
 __pycache__/
 
-# Downloaded data under licence terms that bar redistribution (ICE BofA via FRED, Moody's):
-# the raw FRED pull and every dated pull, and the Moody's outputs. Run 01_download.py and
-# 02_parse.py to rebuild them locally.
+# Data whose terms bar redistribution (ICE BofA, Moody's, Optimal Blue jumbo): the raw FRED pull,
+# dated pulls and vintages, and their outputs. Built locally by 01_download.py and 02_parse.py;
+# tracked only in the private copy (data_credit_private).
 data/raw/fred_data.parquet
 data/raw/fred_pull_*.parquet
+data/raw/gz_ebp_*.csv
+data/processed/*_rating.parquet
 data/processed/*_moodys.parquet
+data/processed/*_mtgrates_jumbo.parquet

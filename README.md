@@ -15,6 +15,18 @@ Downloads corporate credit yields, spreads, and the HQM corporate credit curve f
 - Filters out rows with no data (each file type starts when data becomes available)
 - Stores variable descriptions as parquet metadata
 
+## Public and private copies
+
+Since April 2026 FRED serves only the last three years of the ICE BofA series, and the ICE BofA,
+Moody's and Optimal Blue (jumbo mortgage) series may not be redistributed. So:
+
+- **This public repository** holds the code and the redistributable outputs (Treasury HQM
+  curve, Freddie Mac PMMS mortgage rates, Gilchrist-Zakrajsek). Each run writes exactly what the
+  sources serve today; the licensed outputs are built locally but git-ignored.
+- **A private copy** (same code) adds a `KEEP_FULL_HISTORY` file. With it, `01_download.py` keeps
+  every pull as a dated file and appends new dates to the history already held, never
+  overwriting it, so the full ICE BofA history is maintained; every output is tracked there.
+
 ## Installation
 
 ```bash
@@ -78,6 +90,9 @@ All output files are saved to `data/processed/` in Parquet format with embedded 
 | `monthly_mtgrates.parquet` | End of month values |
 | `quarterly_mtgrates.parquet` | End of quarter values |
 | `quarterly_avg_mtgrates.parquet` | Quarterly averages |
+
+The Optimal Blue jumbo rate (`ym_30_jumbo`, licensed) is written separately to
+`*_mtgrates_jumbo.parquet` (git-ignored in the public repository).
 
 ### Moody's Seasoned Aaa/Baa
 | File | Description |

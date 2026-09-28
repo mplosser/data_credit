@@ -3,6 +3,7 @@ Download corporate credit yields, spreads, Moody's Aaa/Baa, HQM curve, and mortg
 and the Gilchrist-Zakrajsek spread and excess bond premium from the Federal Reserve Board.
 """
 
+import io
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -26,9 +27,45 @@ RAW_DIR = DATA_DIR / 'raw'
 # Create directories if they don't exist
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
+# History mode. The PRIVATE copy (data_credit_private) carries a KEEP_FULL_HISTORY file: every
+# pull is kept as a dated file and new dates are APPENDED to the history we hold, never
+# overwriting it (FRED serves only the last three years of the ICE BofA series since April 2026).
+# The public repo has no such file: each run simply writes what FRED currently serves.
+KEEP_FULL_HISTORY = (BASE_DIR / 'KEEP_FULL_HISTORY').exists()
+
 # Initialize FRED API
 fred = Fred(api_key=FRED_API_KEY)
 print("FRED API initialized successfully")
+
+
+def append_history(df, output_path):
+    """Private mode: keep this pull as a dated file and append only NEW dates to the history.
+
+    Values we already hold are never replaced, conflicts on overlapping dates are logged, and
+    the write is refused if any series would lose observations.
+    """
+    pull_path = RAW_DIR / f"fred_pull_{pd.Timestamp.today():%Y%m%d}.parquet"
+    df.to_parquet(pull_path)
+    print(f"\n  Saved this pull as {pull_path.name}")
+    if not output_path.exists():
+        return df
+    old = pd.read_parquet(output_path)
+    old['date'] = pd.to_datetime(old['date'])
+    df['date'] = pd.to_datetime(df['date'])
+    merged = old.set_index('date').combine_first(df.set_index('date'))  # existing values win
+    both = old.set_index('date').index.intersection(df.set_index('date').index)
+    o, n = old.set_index('date').loc[both], df.set_index('date').loc[both]
+    for c in [c for c in n.columns if c in o.columns]:
+        d = (o[c] - n[c]).abs()
+        k = int((d > 1e-9).sum())
+        if k:
+            print(f"  NOTE {c}: {k} overlapping dates differ from held values (max {d.max():.4f}); held values kept")
+    lost = {c: int(old[c].notna().sum() - merged[c].notna().sum()) for c in old.columns if c != 'date' and c in merged}
+    lost = {c: v for c, v in lost.items() if v > 0}
+    if lost:
+        raise RuntimeError(f"refusing to write {output_path.name}: series would lose observations {lost}")
+    print(f"  Merged into {output_path.name}: {len(merged) - len(old)} new dates appended; history preserved")
+    return merged.reset_index()
 
 
 def download_fred_series():
@@ -95,36 +132,9 @@ def download_fred_series():
     df.index.name = 'date'
     df = df.reset_index()
 
-    # NEVER overwrite history. Since April 2026 FRED serves only the last three years of the
-    # ICE BofA series, so a fresh pull is SHORTER than what we hold. Each pull is kept as its
-    # own dated file, and merged into fred_data.parquet by appending only NEW dates: values we
-    # already hold are never replaced, conflicts on overlapping dates are logged, and the
-    # write is refused if any series would lose observations. The full history is also
-    # archived (read-only) in OneDrive/bec_irreplaceable_data.
-    pull_path = RAW_DIR / f"fred_pull_{pd.Timestamp.today():%Y%m%d}.parquet"
-    df.to_parquet(pull_path)
-    print(f"\n  Saved this pull as {pull_path.name}")
     output_path = RAW_DIR / 'fred_data.parquet'
-    if output_path.exists():
-        old = pd.read_parquet(output_path)
-        old['date'] = pd.to_datetime(old['date'])
-        df['date'] = pd.to_datetime(df['date'])
-        merged = old.set_index('date').combine_first(df.set_index('date'))  # existing values win
-        # log overlapping dates where the new pull disagrees with what we hold
-        both = old.set_index('date').index.intersection(df.set_index('date').index)
-        o, n = old.set_index('date').loc[both], df.set_index('date').loc[both]
-        for c in [c for c in n.columns if c in o.columns]:
-            d = (o[c] - n[c]).abs()
-            k = int((d > 1e-9).sum())
-            if k:
-                print(f"  NOTE {c}: {k} overlapping dates differ from held values (max {d.max():.4f}); held values kept")
-        lost = {c: int(old[c].notna().sum() - merged[c].notna().sum()) for c in old.columns if c != 'date' and c in merged}
-        lost = {c: v for c, v in lost.items() if v > 0}
-        if lost:
-            raise RuntimeError(f"refusing to write {output_path.name}: series would lose observations {lost}")
-        df = merged.reset_index()
-        added = len(df) - len(old)
-        print(f"  Merged into {output_path.name}: {added} new dates appended; history preserved")
+    if KEEP_FULL_HISTORY:
+        df = append_history(df, output_path)
     df.to_parquet(output_path)
     print(f"\nSaved FRED data to {output_path}")
     print(f"Shape: {df.shape}")
@@ -146,12 +156,12 @@ def download_gz():
     print("\nDownloading Gilchrist-Zakrajsek spread and excess bond premium (Federal Reserve Board)...\n")
     response = requests.get(GZ_URL, timeout=60, headers={'User-Agent': 'data_credit'})
     response.raise_for_status()
-    pull_path = RAW_DIR / f"gz_ebp_{pd.Timestamp.today():%Y%m%d}.csv"
-    pull_path.write_bytes(response.content)
-    df = pd.read_csv(pull_path)
+    if KEEP_FULL_HISTORY:   # keep each vintage (the Board re-estimates the whole history)
+        (RAW_DIR / f"gz_ebp_{pd.Timestamp.today():%Y%m%d}.csv").write_bytes(response.content)
+    df = pd.read_csv(io.BytesIO(response.content))
     df['date'] = pd.to_datetime(df['date'])
     df.to_parquet(RAW_DIR / 'gz_ebp.parquet', index=False)
-    print(f"  Saved {pull_path.name} and gz_ebp.parquet: {len(df)} months, "
+    print(f"  Saved gz_ebp.parquet: {len(df)} months, "
           f"{df['date'].min():%Y-%m} to {df['date'].max():%Y-%m}")
     return df
 

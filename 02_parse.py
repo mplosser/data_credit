@@ -315,44 +315,38 @@ def save_curve_data(df, description_map):
     print(f"  Saved quarterly_curve_end.parquet: {len(df_end)} rows")
 
 
+LICENSED_MTG = ['ym_30_jumbo']   # Optimal Blue jumbo rate: licensed, kept out of the main files
+
+
+def _save_mtg(df, cols, suffix, description_map):
+    """Weekly, end-of-month, end-of-quarter and quarterly-average files for one group of rates."""
+    d = df[['daten', 'datem', 'dateq', *cols]].dropna(subset=cols, how='all').reset_index(drop=True)
+    save_with_metadata(d, PROCESSED_DIR / f'weekly_{suffix}.parquet', description_map)
+    print(f"  Saved weekly_{suffix}.parquet: {len(d)} rows")
+    m = d[d['daten'] == d.groupby('datem')['daten'].transform('max')].reset_index(drop=True)
+    save_with_metadata(m, PROCESSED_DIR / f'monthly_{suffix}.parquet', description_map)
+    print(f"  Saved monthly_{suffix}.parquet: {len(m)} rows")
+    q = d[d['daten'] == d.groupby('dateq')['daten'].transform('max')].reset_index(drop=True)
+    save_with_metadata(q, PROCESSED_DIR / f'quarterly_{suffix}.parquet', description_map)
+    print(f"  Saved quarterly_{suffix}.parquet: {len(q)} rows")
+    qa = d.groupby('dateq')[cols].mean().reset_index()
+    save_with_metadata(qa, PROCESSED_DIR / f'quarterly_avg_{suffix}.parquet', description_map)
+    print(f"  Saved quarterly_avg_{suffix}.parquet: {len(qa)} rows")
+
+
 def save_mortgage_data(df, description_map):
-    """Save mortgage rate data at multiple frequencies."""
+    """Save mortgage rates at multiple frequencies: Freddie Mac PMMS in *_mtgrates, the licensed
+    Optimal Blue jumbo rate separately in *_mtgrates_jumbo."""
     print("\nSaving mortgage rate data...")
-
-    mtg_cols = ['daten', 'datem', 'dateq']
-    mtg_rate_cols = [c for c in df.columns if c.startswith('ym_')]
-    mtg_cols.extend(mtg_rate_cols)
-
-    if len(mtg_rate_cols) == 0:
+    rates = [c for c in df.columns if c.startswith('ym_')]
+    if not rates:
         print("  No mortgage rate data found, skipping...")
         return
-
-    df_mtg = df[mtg_cols].copy()
-
-    # Drop rows where all data columns are null
-    df_mtg = df_mtg.dropna(subset=mtg_rate_cols, how='all')
-
-    # Weekly (mortgage data is weekly)
-    save_with_metadata(df_mtg, PROCESSED_DIR / 'weekly_mtgrates.parquet', description_map)
-    print(f"  Saved weekly_mtgrates.parquet: {len(df_mtg)} rows")
-
-    # End of month
-    df_mtg['eom'] = df_mtg.groupby('datem')['daten'].transform('max')
-    df_monthly = df_mtg[df_mtg['daten'] == df_mtg['eom']].drop(columns=['eom'])
-    save_with_metadata(df_monthly, PROCESSED_DIR / 'monthly_mtgrates.parquet', description_map)
-    print(f"  Saved monthly_mtgrates.parquet: {len(df_monthly)} rows")
-
-    # End of quarter
-    df_mtg['eoq'] = df_mtg.groupby('dateq')['daten'].transform('max')
-    df_quarterly = df_mtg[df_mtg['daten'] == df_mtg['eoq']].drop(columns=['eoq'])
-    save_with_metadata(df_quarterly, PROCESSED_DIR / 'quarterly_mtgrates.parquet', description_map)
-    print(f"  Saved quarterly_mtgrates.parquet: {len(df_quarterly)} rows")
-
-    # Quarterly average
-    numeric_cols = df_mtg.select_dtypes(include=[np.number]).columns.tolist()
-    df_qavg = df_mtg.groupby('dateq')[numeric_cols].mean().reset_index()
-    save_with_metadata(df_qavg, PROCESSED_DIR / 'quarterly_avg_mtgrates.parquet', description_map)
-    print(f"  Saved quarterly_avg_mtgrates.parquet: {len(df_qavg)} rows")
+    public = [c for c in rates if c not in LICENSED_MTG]
+    licensed = [c for c in rates if c in LICENSED_MTG]
+    _save_mtg(df, public, 'mtgrates', description_map)
+    if licensed:
+        _save_mtg(df, licensed, 'mtgrates_jumbo', description_map)
 
 
 def save_moodys_data(df, description_map):
