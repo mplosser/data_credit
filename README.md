@@ -7,6 +7,7 @@ Downloads corporate credit yields, spreads, and the HQM corporate credit curve f
 - Downloads ICE BofA corporate bond yields and spreads (AAA through B ratings)
 - Downloads Treasury HQM corporate credit curve data
 - Downloads mortgage rates (30-year, 15-year, jumbo)
+- Downloads the Gilchrist-Zakrajsek credit spread and excess bond premium (Federal Reserve Board)
 - Calculates forward rates from spot yields
 - Interpolates missing maturities
 - Outputs data at multiple frequencies: daily, monthly, quarterly, and quarterly average
@@ -48,6 +49,7 @@ python 03_summarize.py   # View summary with column availability by date range
 | FRED | BAMLC0A1CAAA, BAMLC0A1CAAAEY, etc. | ICE BofA Corporate Bond Indices |
 | FRED | HQMCB6MT, HQMCB1YR, etc. | HQM Corporate Bond Yields |
 | FRED | MORTGAGE30US, MORTGAGE15US, OBMMIJUMBO30YF | Mortgage Rates |
+| Federal Reserve Board | [ebp_csv.csv](https://www.federalreserve.gov/econres/notes/feds-notes/ebp_csv.csv) | Gilchrist-Zakrajsek credit spread and excess bond premium, monthly from 1973 |
 
 ## Output Files
 
@@ -75,6 +77,16 @@ All output files are saved to `data/processed/` in Parquet format with embedded 
 | `quarterly_mtgrates.parquet` | End of quarter values |
 | `quarterly_avg_mtgrates.parquet` | Quarterly averages |
 
+### Gilchrist-Zakrajsek Spread and Excess Bond Premium
+| File | Description |
+|------|-------------|
+| `monthly_gz.parquet` | Monthly (as published) |
+| `quarterly_gz.parquet` | Last month of each quarter |
+| `quarterly_avg_gz.parquet` | Quarterly averages |
+
+The Board re-estimates the full history with each release, so the latest vintage replaces the
+previous one; each pull is also kept in `data/raw/gz_ebp_YYYYMMDD.csv`.
+
 ## Variables
 
 ### Corporate Credit (decimal format)
@@ -91,6 +103,11 @@ All output files are saved to `data/processed/` in Parquet format with embedded 
 - `ym_30` - 30-year fixed rate
 - `ym_15` - 15-year fixed rate
 - `ym_30_jumbo` - 30-year jumbo rate
+
+### Gilchrist-Zakrajsek (decimal format, except the probability)
+- `gz_spread` - GZ credit spread
+- `ebp` - Excess bond premium
+- `recession_prob` - Estimated probability of recession over the next 12 months (0-1)
 
 ## Requirements
 

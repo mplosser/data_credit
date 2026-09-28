@@ -350,6 +350,43 @@ def save_mortgage_data(df, description_map):
     print(f"  Saved quarterly_avg_mtgrates.parquet: {len(df_qavg)} rows")
 
 
+GZ_NAMES = {
+    'gz_spread': 'Gilchrist-Zakrajsek credit spread (Federal Reserve Board)',
+    'ebp': 'Excess bond premium (Gilchrist-Zakrajsek)',
+    'recession_prob': 'Estimated probability of recession in the next 12 months (EBP model)',
+}
+
+
+def save_gz_data():
+    """Save the Gilchrist-Zakrajsek spread and excess bond premium: monthly, end of quarter, quarterly average."""
+    print("\nSaving Gilchrist-Zakrajsek data...")
+    path = RAW_DIR / 'gz_ebp.parquet'
+    if not path.exists():
+        print("  raw/gz_ebp.parquet not found (run 01_download.py), skipping...")
+        return
+    gz = pd.read_parquet(path).rename(columns={'est_prob': 'recession_prob'})
+    gz['daten'] = pd.to_datetime(gz['date'])
+    gz = gz.drop(columns='date').sort_values('daten')
+    gz['gz_spread'] = gz['gz_spread'] / 100          # percentage points -> decimal
+    gz['ebp'] = gz['ebp'] / 100
+    gz['datem'] = gz['daten'].dt.to_period('M').astype(str)
+    gz['dateq'] = gz['daten'].dt.to_period('Q').astype(str)
+    cols = ['daten', 'datem', 'dateq', 'gz_spread', 'ebp', 'recession_prob']
+    gz = gz[cols].dropna(subset=['gz_spread', 'ebp'], how='all')
+
+    save_with_metadata(gz, PROCESSED_DIR / 'monthly_gz.parquet', GZ_NAMES)
+    print(f"  Saved monthly_gz.parquet: {len(gz)} rows")
+
+    # End of quarter = the quarter's last month (the series is a monthly average)
+    q = gz[gz['daten'] == gz.groupby('dateq')['daten'].transform('max')]
+    save_with_metadata(q.reset_index(drop=True), PROCESSED_DIR / 'quarterly_gz.parquet', GZ_NAMES)
+    print(f"  Saved quarterly_gz.parquet: {len(q)} rows")
+
+    qavg = gz.groupby('dateq')[['gz_spread', 'ebp', 'recession_prob']].mean().reset_index()
+    save_with_metadata(qavg, PROCESSED_DIR / 'quarterly_avg_gz.parquet', GZ_NAMES)
+    print(f"  Saved quarterly_avg_gz.parquet: {len(qavg)} rows")
+
+
 def main():
     """Run all processing tasks."""
     print("=" * 70)
@@ -377,6 +414,7 @@ def main():
     save_rating_data(df, description_map)
     save_curve_data(df, description_map)
     save_mortgage_data(df, description_map)
+    save_gz_data()
 
     print("\n" + "=" * 70)
     print("PROCESSING COMPLETE")

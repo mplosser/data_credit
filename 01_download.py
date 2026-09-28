@@ -123,6 +123,29 @@ def download_fred_series():
     return df
 
 
+GZ_URL = 'https://www.federalreserve.gov/econres/notes/feds-notes/ebp_csv.csv'
+
+
+def download_gz():
+    """Download the Gilchrist-Zakrajsek credit spread and excess bond premium (Federal Reserve Board).
+
+    Monthly from 1973, updated about monthly (FEDS Notes, "Updating the Recession Risk and the
+    Excess Bond Premium"). The Board re-estimates the whole history each release, so the newest
+    vintage is the series of record (raw/gz_ebp.parquet); every pull is also kept as a dated CSV.
+    """
+    print("\nDownloading Gilchrist-Zakrajsek spread and excess bond premium (Federal Reserve Board)...\n")
+    response = requests.get(GZ_URL, timeout=60, headers={'User-Agent': 'data_credit'})
+    response.raise_for_status()
+    pull_path = RAW_DIR / f"gz_ebp_{pd.Timestamp.today():%Y%m%d}.csv"
+    pull_path.write_bytes(response.content)
+    df = pd.read_csv(pull_path)
+    df['date'] = pd.to_datetime(df['date'])
+    df.to_parquet(RAW_DIR / 'gz_ebp.parquet', index=False)
+    print(f"  Saved {pull_path.name} and gz_ebp.parquet: {len(df)} months, "
+          f"{df['date'].min():%Y-%m} to {df['date'].max():%Y-%m}")
+    return df
+
+
 def download_hqm_curve():
     """Download HQM Corporate Credit Curve from Treasury website."""
     print("\nDownloading HQM Corporate Credit Curve from Treasury...\n")
@@ -147,6 +170,9 @@ def main():
 
     # Download from FRED
     df_fred = download_fred_series()
+
+    # Gilchrist-Zakrajsek spread and excess bond premium (Federal Reserve Board)
+    download_gz()
 
     # Download HQM curve from Treasury (supplementary)
     download_hqm_curve()
