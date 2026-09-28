@@ -1,0 +1,14 @@
+# secrets
+.env
+
+# environments / caches
+.venv/
+venv/
+__pycache__/
+
+# Downloaded data under licence terms that bar redistribution (ICE BofA via FRED, Moody's):
+# the raw FRED pull and every dated pull, and the Moody's outputs. Run 01_download.py and
+# 02_parse.py to rebuild them locally.
+data/raw/fred_data.parquet
+data/raw/fred_pull_*.parquet
+data/processed/*_moodys.parquet
